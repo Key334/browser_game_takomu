@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ふよふよタコさん - 癒やしの海中クリッカー</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* カスタムスタイルとゲーム用アニメーション */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background-color: #45949e;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        #game-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        /* ガラスモーフィズム風のUIパネル */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.22);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 8px 32px rgba(16, 58, 66, 0.2);
+        }
+
+        /* ぷにっと押せるボタン演出 */
+        .btn-puni {
+            transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.2s;
+        }
+        .btn-puni:active {
+            transform: scale(0.9);
+        }
+
+        /* フィーバー時の虹色光彩アニメーション */
+        @keyframes feverGlow {
+            0% { box-shadow: 0 0 15px rgba(255, 182, 193, 0.8), 0 0 30px rgba(255, 255, 255, 0.5); }
+            50% { box-shadow: 0 0 25px rgba(255, 223, 128, 0.9), 0 0 45px rgba(173, 216, 230, 0.7); }
+            100% { box-shadow: 0 0 15px rgba(255, 182, 193, 0.8), 0 0 30px rgba(255, 255, 255, 0.5); }
+        }
+        .fever-active {
+            animation: feverGlow 1.5s infinite ease-in-out;
+            border-color: #ffe6f0;
+        }
+
+        /* ポップアップテキストのアニメーション */
+        @keyframes floatUpFade {
+            0% { transform: translate(-50%, 0) scale(0.7); opacity: 0; }
+            20% { transform: translate(-50%, -15px) scale(1.15); opacity: 1; }
+            100% { transform: translate(-50%, -65px) scale(1); opacity: 0; }
+        }
+        .floating-label {
+            position: absolute;
+            pointer-events: none;
+            font-weight: 800;
+            text-shadow: 0 2px 6px rgba(15, 65, 74, 0.6), 0 0 2px #000;
+            animation: floatUpFade 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+            z-index: 30;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body class="relative w-full h-full">
+
+    <!-- メインのゲームキャンバス -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- フローティングテキスト（ハートやセリフ等）のコンテナ -->
+    <div id="floating-container" class="fixed inset-0 pointer-events-none overflow-hidden z-20"></div>
+
+    <!-- 上部ステータスバー（ごきげん度・レベル・サウンド切替） -->
+    <header class="fixed top-0 left-0 right-0 p-3 sm:p-5 flex justify-between items-start pointer-events-none z-10">
+        <!-- 左側：ごきげんレベル＆ゲージ -->
+        <div id="status-card" class="glass-panel rounded-3xl px-4 py-2.5 sm:px-5 sm:py-3 text-white pointer-events-auto max-w-[260px] sm:max-w-xs w-full transition-all duration-300">
+            <div class="flex items-center justify-between mb-1">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-lg sm:text-xl">🐙</span>
+                    <span class="text-xs sm:text-sm font-bold tracking-wider text-teal-50">ふよふよLv.</span>
+                    <span id="level-display" class="text-xl sm:text-2xl font-extrabold text-pink-200 drop-shadow">1</span>
+                </div>
+                <div class="text-right">
+                    <span class="text-[11px] sm:text-xs font-bold bg-white/25 px-2.5 py-0.5 rounded-full">
+                        なでなで: <span id="score-display">0</span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- ごきげんゲージバー -->
+            <div class="w-full h-3 sm:h-3.5 bg-teal-950/40 rounded-full overflow-hidden p-0.5 border border-white/30">
+                <div id="mood-bar" class="h-full bg-gradient-to-r from-pink-300 via-pink-200 to-amber-200 rounded-full transition-all duration-200" style="width: 15%;"></div>
+            </div>
+            <div class="flex justify-between items-center mt-1 text-[11px] sm:text-xs text-teal-50/90 font-medium">
+                <span id="mood-text">ふよふよ中〜</span>
+                <span id="combo-display" class="font-extrabold text-amber-200 opacity-0 transition-opacity duration-200">0 COMBO!</span>
+            </div>
+        </div>
+
+        <!-- 右側：コントロールボタン群 -->
+        <div class="flex flex-col sm:flex-row gap-2 pointer-events-auto">
+            <!-- 音声オン・オフボタン -->
+            <button id="sound-toggle" class="glass-panel btn-puni rounded-full w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center text-white text-xl shadow-lg" title="効果音のオン/オフ">
+                <span id="sound-icon">🔊</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- 下部アクションボタンバー（エサやり・すみ吐き・おどり） -->
+    <footer class="fixed bottom-4 sm:bottom-6 left-0 right-0 px-4 flex justify-center items-center pointer-events-none z-10">
+        <div class="glass-panel rounded-full p-2 sm:p-2.5 flex items-center gap-2 sm:gap-3 pointer-events-auto shadow-xl">
+            <button id="btn-feed" class="btn-puni bg-pink-300/90 hover:bg-pink-300 text-teal-950 font-extrabold text-xs sm:text-sm px-4 py-2.5 sm:px-5 sm:py-3 rounded-full flex items-center gap-1.5 shadow">
+                <span class="text-base sm:text-lg">🦐</span>
+                <span>エサをまく</span>
+            </button>
+
+            <button id="btn-spin" class="btn-puni bg-white/85 hover:bg-white text-teal-900 font-extrabold text-xs sm:text-sm px-4 py-2.5 sm:px-5 sm:py-3 rounded-full flex items-center gap-1.5 shadow">
+                <span class="text-base sm:text-lg">💫</span>
+                <span>くるりん</span>
+            </button>
+
+            <button id="btn-ink" class="btn-puni bg-teal-900/75 hover:bg-teal-900 text-pink-100 font-extrabold text-xs sm:text-sm px-4 py-2.5 sm:px-5 sm:py-3 rounded-full flex items-center gap-1.5 shadow border border-white/20">
+                <span class="text-base sm:text-lg">💨</span>
+                <span>ぷしゅー</span>
+            </button>
+        </div>
+    </footer>
+
+    <!-- 初回ガイドメッセージ（タップで自然に消える） -->
+    <div id="intro-toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 pointer-events-none z-10 transition-opacity duration-700">
+        <div class="bg-teal-950/60 text-white text-xs sm:text-sm font-bold px-4 py-2 rounded-full backdrop-blur-sm border border-white/25 whitespace-nowrap shadow-lg">
+            ✨ タコさんをタップしたり、海をタッチして遊ぼう！ ✨
+        </div>
+    </div>
+
+    <script>
+        /**
+         * ふよふよタコさん - 癒やしの海中インタラクティブゲーム
+         * 添付画像のピンク色のメンダコ風キャラクターを忠実に再現し、
+         * ぷにぷにアニメーション、タップ反応、エサやり、Web Audio効果音を統合した単一ファイル実装です。
+         */
+
+        // ==========================================
+        // 1. Web Audio API による水中効果音エンジン
+        // ==========================================
+        class UnderwaterAudio {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+            }
+
+            // ユーザー操作時にAudioContextを初期化
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) {
+                        this.ctx = new AudioCtx();
+                    }
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            toggleMute() {
+                this.muted = !this.muted;
+                return this.muted;
+            }
+
+            // タップ時の「ぷにっ♪」という可愛い水音
+            playPuni(pitchMultiplier = 1.0) {
+                if (this.muted) return;
+                this.init();
+                if (!this.ctx) return;
+
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'sine';
+                    const baseFreq = 320 * pitchMultiplier;
+                    osc.frequency.setValueAtTime(baseFreq, now);
+                    osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.85, now + 0.09);
+                    osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.3, now + 0.18);
+
+                    gain.gain.setValueAtTime(0.01, now);
+                    gain.gain.linearRampToValueAtTime(0.22, now + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.21);
+                } catch (e) {
+                    // オーディオ再生エラーを安全に無視
+                }
+            }
+
+            // 海面タップ時の「ぽわわん（泡音）」
+            playBubble() {
+                if (this.muted) return;
+                this.init();
+                if (!this.ctx) return;
+
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'sine';
+                    const startFreq = 450 + Math.random() * 200;
+                    osc.frequency.setValueAtTime(startFreq, now);
+                    osc.frequency.exponentialRampToValueAtTime(startFreq * 2.2, now + 0.12);
+
+                    gain.gain.setValueAtTime(0.01, now);
+                    gain.gain.linearRampToValueAtTime(0.12, now + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.14);
+                } catch (e) {}
+            }
+
+            // エサを食べた時の「ぱくっ・きらーん」音
+            playEat() {
+                if (this.muted) return;
+                this.init();
+                if (!this.ctx) return;
+
+                try {
+                    const now = this.ctx.currentTime;
+                    const notes = [523.25, 659.25, 783.99]; // ド・ミ・ソ
+                    notes.forEach((freq, idx) => {
+                        const osc = this.ctx.createOscillator();
+                        const gain = this.ctx.createGain();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(freq, now + idx * 0.055);
+
+                        gain.gain.setValueAtTime(0.01, now + idx * 0.055);
+                        gain.gain.linearRampToValueAtTime(0.15, now + idx * 0.055 + 0.02);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.055 + 0.22);
+
+                        osc.connect(gain);
+                        gain.connect(this.ctx.destination);
+                        osc.start(now + idx * 0.055);
+                        osc.stop(now + idx * 0.055 + 0.24);
+                    });
+                } catch (e) {}
+            }
+
+            // レベルアップ・フィーバー時のファンファーレ
+            playLevelUp() {
+                if (this.muted) return;
+                this.init();
+                if (!this.ctx) return;
+
+                try {
+                    const now = this.ctx.currentTime;
+                    const chord = [523.25, 659.25, 783.99, 1046.50];
+                    chord.forEach((freq, i) => {
+                        const osc = this.ctx.createOscillator();
+                        const gain = this.ctx.createGain();
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(freq, now + i * 0.07);
+
+                        gain.gain.setValueAtTime(0.01, now + i * 0.07);
+                        gain.gain.linearRampToValueAtTime(0.16, now + i * 0.07 + 0.03);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.07 + 0.45);
+
+                        osc.connect(gain);
+                        gain.connect(this.ctx.destination);
+                        osc.start(now + i * 0.07);
+                        osc.stop(now + i * 0.07 + 0.46);
+                    });
+                } catch (e) {}
+            }
+
+            // ぷしゅー（墨・ジェット噴射）音
+            playSquirt() {
+                if (this.muted) return;
+                this.init();
+                if (!this.ctx) return;
+
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(240, now);
+                    osc.frequency.exponentialRampToValueAtTime(75, now + 0.28);
+
+                    // ローパスフィルタで水中のこもった音にする
+                    const filter = this.ctx.createBiquadFilter();
+                    filter.type = 'lowpass';
+                    filter.frequency.setValueAtTime(600, now);
+
+                    gain.gain.setValueAtTime(0.16, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+                    osc.connect(filter);
+                    filter.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.31);
+                } catch (e) {}
+            }
+        }
+
+        // ==========================================
+        // 2. ゲーム状態とエンティティ管理
+        // ==========================================
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const audio = new UnderwaterAudio();
+
+        // UI要素の参照
+        const levelDisplay = document.getElementById('level-display');
+        const scoreDisplay = document.getElementById('score-display');
+        const moodBar = document.getElementById('mood-bar');
+        const moodText = document.getElementById('mood-text');
+        const comboDisplay = document.getElementById('combo-display');
+        const statusCard = document.getElementById('status-card');
+        const floatingContainer = document.getElementById('floating-container');
+        const introToast = document.getElementById('intro-toast');
+
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+        let dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+        // ゲーム進行データ
+        const gameState = {
+            score: 0,
+            level: 1,
+            mood: 15,         // 0〜100（100でレベルアップ＆フィーバー）
+            combo: 0,
+            comboTimer: 0,
+            feverTimer: 0,
+            hasInteracted: false
+        };
+
+        // パーティクル・エサ・波紋配列
+        const bubbles = [];
+        const ripples = [];
+        const foods = [];
+        const inkClouds = [];
+        const sparkles = [];
+
+        // タコさんのキャラクターオブジェクト（添付画像のデザイン・比率を忠実に再現）
+        const octopus = {
+            x: width * 0.5,
+            y: height * 0.48,
+            vx: 0,
+            vy: 0,
+            targetX: width * 0.5,
+            targetY: height * 0.48,
+            hasTarget: false,
+            baseRadius: 95,
+            // ふよふよ・ぷにぷにアニメーション用パラメータ
+            time: 0,
+            scaleX: 1,
+            scaleY: 1,
+            velScaleX: 0,
+            velScaleY: 0,
+            angle: 0,
+            velAngle: 0,
+            spinRemaining: 0,
+            // 表情ステート: 'normal' | 'happy' | 'surprised' | 'eating' | 'fever'
+            expression: 'normal',
+            expressionTimer: 0,
+            // 視線（カーソルやエサを追う）
+            lookX: 0,
+            lookY: 0
+        };
+
+        // タコさんのセリフリスト
+        const reactions = [
+            "ぷにっ♪", "ふよ〜ん", "きもちいい〜", "わぁい！",
+            "ぷくぷく♡", "なでなで〜", "ほわわ〜", "うみだいすき！"
+        ];
+
+        // ==========================================
+        // 3. キャンバスリサイズと背景パーティクル初期化
+        // ==========================================
+        function resizeCanvas() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            // 画面サイズに応じてタコさんの基本サイズを調整
+            const minDim = Math.min(width, height);
+            octopus.baseRadius = Math.max(68, Math.min(115, minDim * 0.17));
+
+            // 画面外に出ていたら中央付近へ戻す
+            octopus.x = Math.max(80, Math.min(width - 80, octopus.x));
+            octopus.y = Math.max(100, Math.min(height - 110, octopus.y));
+        }
+
+        function initAmbientBubbles() {
+            bubbles.length = 0;
+            const count = Math.floor((width * height) / 18000) + 18;
+            for (let i = 0; i < count; i++) {
+                bubbles.push({
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+                    r: 2 + Math.random() * 6,
+                    speed: 0.4 + Math.random() * 1.1,
+                    wobbleOffset: Math.random() * Math.PI * 2,
+                    alpha: 0.15 + Math.random() * 0.35
+                });
+            }
+        }
+
+        // ==========================================
+        // 4. 添付画像のタコさんの忠実な描画ロジック
+        // ==========================================
+        /**
+         * 添付画像のタコの特徴：
+         * - 淡いさくらピンク色 (#ffe3ed) のボディに太くしっかりした黒のアウトライン (#0a0a0a)
+         * - 頭頂部の左右に丸く大きな2つの耳（メンダコ風ヒレ）
+         * - 左右非対称で愛嬌のある丸い白目＋中央を横切る黒の太い横線（瞳孔）
+         * - 裾が波打つ4〜5本の短い足（左右の端がくるんと外側に跳ね上がっている）
+         */
+        function drawOctopus(ctx, oct) {
+            ctx.save();
+            ctx.translate(oct.x, oct.y);
+            ctx.rotate(oct.angle);
+            ctx.scale(oct.scaleX, oct.scaleY);
+
+            const s = oct.baseRadius / 100; // 基準サイズ100に対するスケール係数
+            ctx.scale(s, s);
+
+            // フィーバー時のオーラ光彩
+            if (gameState.feverTimer > 0) {
+                ctx.save();
+                const pulse = 1 + Math.sin(oct.time * 8) * 0.08;
+                const grad = ctx.createRadialGradient(0, 0, 30, 0, 0, 145 * pulse);
+                grad.addColorStop(0, 'rgba(255, 230, 242, 0.65)');
+                grad.addColorStop(0.6, 'rgba(255, 192, 218, 0.25)');
+                grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(0, 0, 145 * pulse, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // ふよふよ揺れる耳と足の微細な位相計算
+            const earWaveL = Math.sin(oct.time * 2.6) * 5;
+            const earWaveR = Math.cos(oct.time * 2.6 + 0.5) * 5;
+            const tentacleWave1 = Math.sin(oct.time * 3.2) * 5;
+            const tentacleWave2 = Math.cos(oct.time * 3.2 + 1.0) * 5;
+
+            // --- 1. タコの体全体（耳・胴体・波打つ足）のパス構築 ---
+            ctx.beginPath();
+
+            // 頭のてっぺん中央のくぼみからスタート
+            ctx.moveTo(-18, -32);
+
+            // 左耳（丸くふっくらしたメンダコの耳）
+            ctx.bezierCurveTo(
+                -14, -75 + earWaveL,
+                -45, -96 + earWaveL,
+                -68, -78 + earWaveL
+            );
+            ctx.bezierCurveTo(
+                -88, -60 + earWaveL,
+                -82, -22 + earWaveL * 0.5,
+                -56, -12
+            );
+
+            // 左側の側面から一番左の跳ね上がった足へ
+            ctx.bezierCurveTo(
+                -66, 12,
+                -70, 38,
+                -68, 56
+            );
+
+            // 左端のくるんと跳ねた足
+            ctx.bezierCurveTo(
+                -84, 52 + tentacleWave1,
+                -96, 62 + tentacleWave1,
+                -90, 82 + tentacleWave1
+            );
+            ctx.bezierCurveTo(
+                -84, 102 + tentacleWave1,
+                -62, 100 + tentacleWave2,
+                -52, 86
+            );
+
+            // 下部の波打つ足（左から2番目）
+            ctx.bezierCurveTo(
+                -44, 104 - tentacleWave1,
+                -22, 106 - tentacleWave1,
+                -14, 88
+            );
+
+            // 下部の波打つ足（中央〜右）
+            ctx.bezierCurveTo(
+                -6, 102 + tentacleWave2,
+                16, 102 + tentacleWave2,
+                24, 84
+            );
+
+            // 下部の波打つ足（右から2番目）
+            ctx.bezierCurveTo(
+                32, 98 - tentacleWave2,
+                50, 96 - tentacleWave2,
+                56, 78
+            );
+
+            // 右端のくるんと外側に跳ね上がった足
+            ctx.bezierCurveTo(
+                72, 92 + tentacleWave1,
+                96, 84 + tentacleWave1,
+                96, 60 + tentacleWave1
+            );
+            ctx.bezierCurveTo(
+                96, 42 + tentacleWave1,
+                80, 48,
+                68, 50
+            );
+
+            // 右側の側面から右耳の付け根へ
+            ctx.bezierCurveTo(
+                66, 26,
+                62, 4,
+                52, -16
+            );
+
+            // 右耳（左耳より少し高く愛嬌のあるフォルム）
+            ctx.bezierCurveTo(
+                78, -28 + earWaveR * 0.5,
+                82, -68 + earWaveR,
+                60, -84 + earWaveR
+            );
+            ctx.bezierCurveTo(
+                38, -98 + earWaveR,
+                12, -74 + earWaveR,
+                14, -36
+            );
+
+            // 頭頂部のゆるやかなカーブで閉じる
+            ctx.quadraticCurveTo(-2, -33, -18, -32);
+            ctx.closePath();
+
+            // 塗りつぶし（添付画像の淡いピンク色）
+            ctx.fillStyle = gameState.feverTimer > 0 ? '#ffd6e7' : '#ffe3ed';
+            ctx.fill();
+
+            // 柔らかな内側のハイライト・立体感（元の雰囲気を壊さない控えめな陰影）
+            ctx.save();
+            ctx.clip();
+            const bodyShade = ctx.createLinearGradient(0, -85, 0, 100);
+            bodyShade.addColorStop(0, 'rgba(255, 255, 255, 0.35)');
+            bodyShade.addColorStop(0.75, 'rgba(255, 227, 237, 0)');
+            bodyShade.addColorStop(1, 'rgba(225, 165, 190, 0.25)');
+            ctx.fillStyle = bodyShade;
+            ctx.fillRect(-110, -110, 220, 230);
+            ctx.restore();
+
+            // 太くて力強い黒のアウトライン（添付画像の特徴）
+            ctx.lineWidth = 10.5;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = '#080808';
+            ctx.stroke();
+
+            // --- 2. ほっぺたのチーク（嬉しい時やフィーバー時にほんのり赤らむ） ---
+            if (oct.expression === 'happy' || oct.expression === 'eating' || gameState.feverTimer > 0) {
+                ctx.fillStyle = 'rgba(255, 128, 168, 0.45)';
+                ctx.beginPath();
+                ctx.ellipse(-52, 44, 12, 7, -0.15, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.ellipse(46, 36, 12, 7, -0.15, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // --- 3. 特徴的な「白黒の横線が入った丸い目」の描画 ---
+            // 左目（少し下がり気味で可愛らしいバランス）
+            drawOctopusEye(ctx, -38 + oct.lookX * 3, 22 + oct.lookY * 3, 22, -0.14, oct.expression, true);
+            // 右目（少し大きめで上位置）
+            drawOctopusEye(ctx, 28 + oct.lookX * 3, 10 + oct.lookY * 3, 24, -0.12, oct.expression, false);
+
+            // --- 4. 食べる時・嬉しい時の小さな口元（通常時は画像通り口なし） ---
+            if (oct.expression === 'eating') {
+                ctx.fillStyle = '#ff85a8';
+                ctx.strokeStyle = '#080808';
+                ctx.lineWidth = 4.5;
+                ctx.beginPath();
+                ctx.arc(-4, 48, 8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            } else if (oct.expression === 'surprised') {
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = '#080808';
+                ctx.lineWidth = 4.5;
+                ctx.beginPath();
+                ctx.ellipse(-4, 48, 6, 9, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
+        /**
+         * タコの目を表情に合わせて描画
+         */
+        function drawOctopusEye(ctx, x, y, radius, tilt, expression, isLeft) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(tilt);
+
+            // びっくり時は少し目が大きくなる
+            const r = expression === 'surprised' ? radius * 1.15 : radius;
+
+            // 白目のベース
+            ctx.beginPath();
+            ctx.arc(0, 0, r, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+
+            // 目の外枠（太い黒線）
+            ctx.lineWidth = 8.5;
+            ctx.strokeStyle = '#080808';
+            ctx.stroke();
+
+            // 瞳孔（添付画像の特徴である横一文字の黒線・表情変化対応）
+            ctx.beginPath();
+            ctx.lineCap = 'round';
+            ctx.lineWidth = 7.5;
+            ctx.strokeStyle = '#080808';
+
+            if (expression === 'happy' || gameState.feverTimer > 0) {
+                // にっこりアーチ状の横線（画像の横線のニュアンスを残しつつ嬉しそうに湾曲）
+                ctx.arc(0, 4, r * 0.72, Math.PI * 1.12, Math.PI * 1.88);
+            } else if (expression === 'surprised') {
+                // びっくり時は横線が少し波打つ・またはキュッと縮む
+                ctx.moveTo(-r * 0.65, 0);
+                ctx.lineTo(r * 0.65, 0);
+            } else {
+                // 通常時：添付画像そのままの真っ直ぐな太い横線
+                ctx.moveTo(-r * 0.88, 0);
+                ctx.lineTo(r * 0.88, 0);
+            }
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // ==========================================
+        // 5. 背景・エサ・エフェクトの描画
+        // ==========================================
+        function drawBackground(ctx, time) {
+            // 添付画像の背景色 #45949e を中心とした美しい海中グラデーション
+            const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+            if (gameState.feverTimer > 0) {
+                bgGrad.addColorStop(0, '#58b3be');
+                bgGrad.addColorStop(0.5, '#45949e');
+                bgGrad.addColorStop(1, '#2b6a73');
+            } else {
+                bgGrad.addColorStop(0, '#4fa4af');
+                bgGrad.addColorStop(0.5, '#45949e');
+                bgGrad.addColorStop(1, '#2d6d76');
+            }
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, width, height);
+
+            // 海面から差し込むゆらめく光の筋（コースティクス）
+            ctx.save();
+            ctx.globalCompositeOperation = 'overlay';
+            for (let i = 0; i < 5; i++) {
+                const rayX = width * (0.15 + i * 0.18) + Math.sin(time * 0.7 + i) * 45;
+                const rayWidth = 60 + Math.sin(time * 1.1 + i * 2) * 25;
+                const rayGrad = ctx.createLinearGradient(rayX, 0, rayX + 40, height * 0.85);
+                rayGrad.addColorStop(0, 'rgba(255, 255, 255, 0.25)');
+                rayGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+                ctx.fillStyle = rayGrad;
+                ctx.beginPath();
+                ctx.moveTo(rayX - rayWidth * 0.5, 0);
+                ctx.lineTo(rayX + rayWidth * 0.5, 0);
+                ctx.lineTo(rayX + rayWidth * 1.8, height * 0.85);
+                ctx.lineTo(rayX - rayWidth * 1.2, height * 0.85);
+                ctx.closePath();
+                ctx.fill();
+            }
+            ctx.restore();
+
+            // 背景の泡パーティクル
+            bubbles.forEach(b => {
+                const bx = b.x + Math.sin(time * 2 + b.wobbleOffset) * 8;
+                ctx.beginPath();
+                ctx.arc(bx, b.y, b.r, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${b.alpha})`;
+                ctx.fill();
+
+                // 泡のハイライト点
+                ctx.beginPath();
+                ctx.arc(bx - b.r * 0.3, b.y - b.r * 0.3, b.r * 0.28, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${b.alpha + 0.3})`;
+                ctx.fill();
+            });
+        }
+
+        function drawEffects(ctx) {
+            // 水面の波紋
+            ripples.forEach(r => {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(255, 255, 255, ${r.alpha})`;
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+                ctx.restore();
+            });
+
+            // エサ（ぷりぷりエビ＆光のプランクトン）
+            foods.forEach(f => {
+                ctx.save();
+                ctx.translate(f.x, f.y + Math.sin(f.bobPhase) * 4);
+                ctx.rotate(Math.sin(f.bobPhase * 0.8) * 0.2);
+
+                // 光のオーラ
+                const glow = ctx.createRadialGradient(0, 0, 2, 0, 0, 18);
+                glow.addColorStop(0, 'rgba(255, 235, 170, 0.9)');
+                glow.addColorStop(1, 'rgba(255, 200, 150, 0)');
+                ctx.fillStyle = glow;
+                ctx.beginPath();
+                ctx.arc(0, 0, 18, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 可愛いエビ風の形
+                ctx.fillStyle = '#ff9a76';
+                ctx.strokeStyle = '#3d1c14';
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                ctx.arc(0, 0, 8, -0.3, Math.PI * 1.1);
+                ctx.lineTo(-4, 2);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // 小さな目
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                ctx.arc(4, -3, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            });
+
+            // 墨（ぷしゅー煙幕）
+            inkClouds.forEach(ink => {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(ink.x, ink.y, ink.radius, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(22, 32, 38, ${ink.alpha})`;
+                ctx.fill();
+                ctx.restore();
+            });
+
+            // ハートやキラキラパーティクル
+            sparkles.forEach(sp => {
+                ctx.save();
+                ctx.translate(sp.x, sp.y);
+                ctx.scale(sp.scale, sp.scale);
+                ctx.globalAlpha = sp.alpha;
+                ctx.font = '22px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(sp.emoji, 0, 0);
+                ctx.restore();
+            });
+        }
+
+        // ==========================================
+        // 6. インタラクション＆ゲームロジック
+        // ==========================================
+        function spawnFloatingText(x, y, text, color = '#ffffff') {
+            const el = document.createElement('div');
+            el.className = 'floating-label text-base sm:text-lg';
+            el.style.left = `${x}px`;
+            el.style.top = `${y}px`;
+            el.style.color = color;
+            el.textContent = text;
+            floatingContainer.appendChild(el);
+
+            setTimeout(() => {
+                if (el.parentNode) el.parentNode.removeChild(el);
+            }, 1000);
+        }
+
+        function spawnSparkles(x, y, emojis = ['💖', '✨', '🫧'], count = 5) {
+            for (let i = 0; i < count; i++) {
+                const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.5;
+                const speed = 1.5 + Math.random() * 2.5;
+                sparkles.push({
+                    x: x + (Math.random() - 0.5) * 30,
+                    y: y + (Math.random() - 0.5) * 30,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed - 1.2,
+                    scale: 0.7 + Math.random() * 0.6,
+                    alpha: 1,
+                    emoji: emojis[Math.floor(Math.random() * emojis.length)]
+                });
+            }
+        }
+
+        function spawnFood(x, y) {
+            // 画面内に最大8個まで
+            if (foods.length >= 8) foods.shift();
+            foods.push({
+                x: x ?? (width * 0.2 + Math.random() * width * 0.6),
+                y: y ?? (height * 0.25 + Math.random() * height * 0.45),
+                vx: (Math.random() - 0.5) * 0.6,
+                vy: (Math.random() - 0.5) * 0.4,
+                bobPhase: Math.random() * Math.PI * 2
+            });
+        }
+
+        function addMoodAndScore(points, moodGain) {
+            gameState.score += points;
+            gameState.mood += moodGain;
+
+            // コンボ加算
+            gameState.combo += 1;
+            gameState.comboTimer = 2.2; // 2.2秒以内に次をタップでコンボ継続
+
+            // レベルアップ判定
+            if (gameState.mood >= 100) {
+                gameState.mood = 0;
+                gameState.level += 1;
+                gameState.feverTimer = 6.0; // 6秒間ふよふよフィーバー！
+                audio.playLevelUp();
+                spawnFloatingText(octopus.x, octopus.y - octopus.baseRadius - 20, `🎉 Lv.${gameState.level} フィーバー！ 🎉`, '#ffe680');
+                spawnSparkles(octopus.x, octopus.y, ['💖', '🌟', '🎵', '✨'], 12);
+                octopus.spinRemaining += Math.PI * 2;
+            }
+
+            updateUI();
+        }
+
+        function updateUI() {
+            levelDisplay.textContent = gameState.level;
+            scoreDisplay.textContent = gameState.score.toLocaleString();
+            moodBar.style.width = `${Math.min(100, Math.max(5, gameState.mood))}%`;
+
+            if (gameState.feverTimer > 0) {
+                moodText.textContent = '✨ ごきげんMAXフィーバー！ ✨';
+                statusCard.classList.add('fever-active');
+            } else if (gameState.mood > 70) {
+                moodText.textContent = 'るんるん♪ もうすぐLvUP！';
+                statusCard.classList.remove('fever-active');
+            } else if (gameState.mood > 35) {
+                moodText.textContent = 'ごきげんふよふよ〜';
+                statusCard.classList.remove('fever-active');
+            } else {
+                moodText.textContent = 'ふよふよ漂い中〜';
+                statusCard.classList.remove('fever-active');
+            }
+
+            if (gameState.combo >= 2) {
+                comboDisplay.textContent = `${gameState.combo} COMBO!`;
+                comboDisplay.style.opacity = '1';
+            } else {
+                comboDisplay.style.opacity = '0';
+            }
+        }
+
+        // タコさん本体をタップした時のリアクション
+        function onTapOctopus(tapX, tapY) {
+            const pitch = Math.min(1.5, 0.95 + gameState.combo * 0.03);
+            audio.playPuni(pitch);
+
+            // ぷにっと大きく弾むバネ物理
+            octopus.velScaleX = 0.38;
+            octopus.velScaleY = -0.34;
+
+            // タップ位置と逆方向へ少しふよっと跳ねる
+            const dx = octopus.x - tapX;
+            const dy = octopus.y - tapY;
+            const dist = Math.hypot(dx, dy) || 1;
+            octopus.vx += (dx / dist) * 3.5;
+            octopus.vy += (dy / dist) * 3.5 - 2.2;
+
+            // 表情を「嬉しい」または「びっくり」に切り替え
+            octopus.expression = Math.random() < 0.78 ? 'happy' : 'surprised';
+            octopus.expressionTimer = 0.95;
+
+            // 10コンボごとにくるっと一回転！
+            if ((gameState.combo + 1) % 10 === 0) {
+                octopus.spinRemaining += Math.PI * 2;
+            }
+
+            const bonus = gameState.feverTimer > 0 ? 2 : 1;
+            addMoodAndScore(1 * bonus, 6 * bonus);
+
+            const msg = reactions[Math.floor(Math.random() * reactions.length)];
+            spawnFloatingText(tapX, tapY - 25, msg, '#ffe3ed');
+            spawnSparkles(tapX, tapY, ['💖', '🫧', '♪'], 4);
+        }
+
+        // 海の何もない場所をタップした時のリアクション
+        function onTapWater(tapX, tapY) {
+            audio.playBubble();
+
+            // 波紋を発生
+            ripples.push({
+                x: tapX,
+                y: tapY,
+                radius: 8,
+                alpha: 0.75
+            });
+
+            // 泡を数個発生
+            for (let i = 0; i < 4; i++) {
+                bubbles.push({
+                    x: tapX + (Math.random() - 0.5) * 24,
+                    y: tapY + (Math.random() - 0.5) * 16,
+                    r: 3 + Math.random() * 5,
+                    speed: 1.2 + Math.random() * 1.4,
+                    wobbleOffset: Math.random() * Math.PI * 2,
+                    alpha: 0.55
+                });
+            }
+
+            // タコさんがその場所へふよふよ寄ってくる
+            octopus.targetX = Math.max(85, Math.min(width - 85, tapX));
+            octopus.targetY = Math.max(115, Math.min(height - 125, tapY));
+            octopus.hasTarget = true;
+
+            // 視線をタップ位置に向ける
+            const angle = Math.atan2(tapY - octopus.y, tapX - octopus.x);
+            octopus.lookX = Math.cos(angle);
+            octopus.lookY = Math.sin(angle);
+        }
+
+        // ポインター入力ハンドラ（マウス・タッチ両対応）
+        function handlePointerDown(clientX, clientY) {
+            if (!gameState.hasInteracted) {
+                gameState.hasInteracted = true;
+                introToast.style.opacity = '0';
+            }
+
+            // 1. まず近くにエサがあれば優先的に食べる（または引き寄せる）
+            for (let i = foods.length - 1; i >= 0; i--) {
+                const f = foods[i];
+                if (Math.hypot(clientX - f.x, clientY - f.y) < 42) {
+                    // エサをタップしたらタコがそのエサに向かって泳ぐ
+                    octopus.targetX = f.x;
+                    octopus.targetY = f.y;
+                    octopus.hasTarget = true;
+                    audio.playBubble();
+                    ripples.push({ x: f.x, y: f.y, radius: 6, alpha: 0.8 });
+                    return;
+                }
+            }
+
+            // 2. タコさん本体の当たり判定（少し広めでタップしやすく）
+            const hitRadius = octopus.baseRadius * 1.15;
+            const distToOct = Math.hypot(clientX - octopus.x, clientY - octopus.y);
+
+            if (distToOct <= hitRadius) {
+                onTapOctopus(clientX, clientY);
+            } else {
+                onTapWater(clientX, clientY);
+            }
+        }
+
+        // ==========================================
+        // 7. メインアニメーション・物理更新ループ
+        // ==========================================
+        let lastTimestamp = 0;
+
+        function update(dt) {
+            octopus.time += dt;
+
+            // コンボ・フィーバータイマー管理
+            if (gameState.comboTimer > 0) {
+                gameState.comboTimer -= dt;
+                if (gameState.comboTimer <= 0) {
+                    gameState.combo = 0;
+                    updateUI();
+                }
+            }
+
+            if (gameState.feverTimer > 0) {
+                gameState.feverTimer -= dt;
+                if (gameState.feverTimer <= 0) {
+                    gameState.feverTimer = 0;
+                    updateUI();
+                }
+            }
+
+            // 表情タイマー
+            if (octopus.expressionTimer > 0) {
+                octopus.expressionTimer -= dt;
+                if (octopus.expressionTimer <= 0) {
+                    octopus.expression = 'normal';
+                }
+            }
+
+            // エサが画面にない場合、たまに自動でふよふよ湧く
+            if (foods.length < 2 && Math.random() < 0.008) {
+                spawnFood();
+            }
+
+            // 一番近いエサがあればタコが気づいて少し寄っていく
+            if (foods.length > 0 && !octopus.hasTarget) {
+                const nearest = foods[0];
+                const d = Math.hypot(nearest.x - octopus.x, nearest.y - octopus.y);
+                if (d < 280) {
+                    octopus.targetX = nearest.x;
+                    octopus.targetY = nearest.y;
+                    octopus.hasTarget = true;
+                }
+            }
+
+            // タコの移動とふよふよ浮遊感の計算
+            const floatForceX = Math.sin(octopus.time * 1.1) * 0.06;
+            const floatForceY = Math.cos(octopus.time * 1.6) * 0.09;
+
+            if (octopus.hasTarget) {
+                const dx = octopus.targetX - octopus.x;
+                const dy = octopus.targetY - octopus.y;
+                const dist = Math.hypot(dx, dy);
+
+                if (dist > 18) {
+                    octopus.vx += (dx / dist) * 0.28;
+                    octopus.vy += (dy / dist) * 0.28;
+                    octopus.lookX = dx / dist;
+                    octopus.lookY = dy / dist;
+                } else {
+                    octopus.hasTarget = false;
+                }
+            } else {
+                // 画面中央付近へ緩やかに戻る復元力
+                const centerDx = (width * 0.5) - octopus.x;
+                const centerDy = (height * 0.48) - octopus.y;
+                octopus.vx += centerDx * 0.0006 + floatForceX;
+                octopus.vy += centerDy * 0.0006 + floatForceY;
+                octopus.lookX *= 0.95;
+                octopus.lookY *= 0.95;
+            }
+
+            // 水の抵抗（ダンピング）
+            octopus.vx *= 0.92;
+            octopus.vy *= 0.92;
+            octopus.x += octopus.vx;
+            octopus.y += octopus.vy;
+
+            // 画面端でのやわらかいバウンド
+            const marginX = octopus.baseRadius * 0.9;
+            const marginTop = 105;
+            const marginBottom = 115;
+            if (octopus.x < marginX) { octopus.x = marginX; octopus.vx *= -0.6; }
+            if (octopus.x > width - marginX) { octopus.x = width - marginX; octopus.vx *= -0.6; }
+            if (octopus.y < marginTop) { octopus.y = marginTop; octopus.vy *= -0.6; }
+            if (octopus.y > height - marginBottom) { octopus.y = height - marginBottom; octopus.vy *= -0.6; }
+
+            // ぷにぷに伸縮（バネ物理＋呼吸のような常時伸縮）
+            const idleSquishX = 1 + Math.sin(octopus.time * 2.4) * 0.045;
+            const idleSquishY = 1 + Math.cos(octopus.time * 2.4) * 0.045;
+
+            const springK = 0.16;
+            const damping = 0.78;
+            octopus.velScaleX += (idleSquishX - octopus.scaleX) * springK;
+            octopus.velScaleY += (idleSquishY - octopus.scaleY) * springK;
+            octopus.velScaleX *= damping;
+            octopus.velScaleY *= damping;
+            octopus.scaleX += octopus.velScaleX;
+            octopus.scaleY += octopus.velScaleY;
+
+            // 体の傾き・回転（くるりんアクション対応）
+            if (octopus.spinRemaining > 0.02) {
+                const step = Math.min(octopus.spinRemaining, 0.24);
+                octopus.angle += step;
+                octopus.spinRemaining -= step;
+            } else {
+                octopus.spinRemaining = 0;
+                const targetTilt = Math.sin(octopus.time * 1.4) * 0.09 + octopus.vx * 0.025;
+                octopus.angle += (targetTilt - octopus.angle) * 0.1;
+            }
+
+            // エサの更新と捕食判定
+            for (let i = foods.length - 1; i >= 0; i--) {
+                const f = foods[i];
+                f.bobPhase += dt * 4;
+                f.x += f.vx;
+                f.y += f.vy;
+
+                // 画面内キープ
+                if (f.x < 40 || f.x > width - 40) f.vx *= -1;
+                if (f.y < 100 || f.y > height - 110) f.vy *= -1;
+
+                // タコがエサに触れたらもぐもぐ！
+                if (Math.hypot(f.x - octopus.x, f.y - octopus.y) < octopus.baseRadius * 0.95) {
+                    foods.splice(i, 1);
+                    audio.playEat();
+                    octopus.expression = 'eating';
+                    octopus.expressionTimer = 1.1;
+                    octopus.velScaleX = 0.3;
+                    octopus.velScaleY = 0.3;
+                    octopus.hasTarget = false;
+
+                    addMoodAndScore(5, 18);
+                    spawnFloatingText(octopus.x, octopus.y - octopus.baseRadius, 'もぐもぐ♡ +5', '#ffd1dc');
+                    spawnSparkles(octopus.x, octopus.y, ['🦐', '💖', '✨'], 6);
+                }
+            }
+
+            // 背景の泡の更新
+            for (let i = bubbles.length - 1; i >= 0; i--) {
+                const b = bubbles[i];
+                b.y -= b.speed;
+                if (b.y < -15) {
+                    if (bubbles.length > 45) {
+                        bubbles.splice(i, 1);
+                    } else {
+                        b.y = height + 15;
+                        b.x = Math.random() * width;
+                    }
+                }
+            }
+
+            // 波紋の更新
+            for (let i = ripples.length - 1; i >= 0; i--) {
+                const r = ripples[i];
+                r.radius += 2.6;
+                r.alpha -= 0.022;
+                if (r.alpha <= 0) ripples.splice(i, 1);
+            }
+
+            // 墨（煙幕）の更新
+            for (let i = inkClouds.length - 1; i >= 0; i--) {
+                const ink = inkClouds[i];
+                ink.x += ink.vx;
+                ink.y += ink.vy;
+                ink.radius += 0.6;
+                ink.alpha -= 0.014;
+                if (ink.alpha <= 0) inkClouds.splice(i, 1);
+            }
+
+            // キラキラ・ハートの更新
+            for (let i = sparkles.length - 1; i >= 0; i--) {
+                const sp = sparkles[i];
+                sp.x += sp.vx;
+                sp.y += sp.vy;
+                sp.alpha -= 0.02;
+                if (sp.alpha <= 0) sparkles.splice(i, 1);
+            }
+        }
+
+        function animateLoop(timestamp) {
+            if (!lastTimestamp) lastTimestamp = timestamp;
+            const dt = Math.min((timestamp - lastTimestamp) / 1000, 0.05);
+            lastTimestamp = timestamp;
+
+            update(dt);
+
+            ctx.clearRect(0, 0, width, height);
+            drawBackground(ctx, octopus.time);
+            drawEffects(ctx);
+            drawOctopus(ctx, octopus);
+
+            requestAnimationFrame(animateLoop);
+        }
+
+        // ==========================================
+        // 8. イベントリスナー登録と初期化
+        // ==========================================
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+        });
+
+        // キャンバス上のマウス・タッチ操作
+        canvas.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            handlePointerDown(e.clientX, e.clientY);
+        });
+
+        // マウス移動でタコがほんのり目で追う
+        canvas.addEventListener('pointermove', (e) => {
+            if (!octopus.hasTarget) {
+                const dx = e.clientX - octopus.x;
+                const dy = e.clientY - octopus.y;
+                const dist = Math.hypot(dx, dy) || 1;
+                octopus.lookX = (dx / dist) * 0.7;
+                octopus.lookY = (dy / dist) * 0.7;
+            }
+        });
+
+        // サウンド切替ボタン
+        const soundToggleBtn = document.getElementById('sound-toggle');
+        const soundIcon = document.getElementById('sound-icon');
+        soundToggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isMuted = audio.toggleMute();
+            soundIcon.textContent = isMuted ? '🔇' : '🔊';
+            if (!isMuted) audio.playBubble();
+        });
+
+        // アクションボタン1：エサをまく
+        document.getElementById('btn-feed').addEventListener('click', (e) => {
+            e.stopPropagation();
+            audio.playBubble();
+            for (let i = 0; i < 3; i++) {
+                spawnFood(
+                    width * 0.25 + Math.random() * width * 0.5,
+                    height * 0.22 + Math.random() * height * 0.35
+                );
+            }
+            spawnFloatingText(octopus.x, octopus.y - octopus.baseRadius - 10, '🦐 エサだ〜！', '#ffe6b3');
+        });
+
+        // アクションボタン2：くるりん（回転ダンス）
+        document.getElementById('btn-spin').addEventListener('click', (e) => {
+            e.stopPropagation();
+            audio.playPuni(1.25);
+            octopus.spinRemaining += Math.PI * 2;
+            octopus.velScaleX = -0.25;
+            octopus.velScaleY = 0.35;
+            octopus.expression = 'happy';
+            octopus.expressionTimer = 1.2;
+            addMoodAndScore(2, 8);
+            spawnFloatingText(octopus.x, octopus.y - octopus.baseRadius - 10, '💫 くるり〜ん♪', '#ffffff');
+            spawnSparkles(octopus.x, octopus.y, ['✨', '🎵', '💖'], 6);
+        });
+
+        // アクションボタン3：ぷしゅー（墨を吐いてジェットダッシュ）
+        document.getElementById('btn-ink').addEventListener('click', (e) => {
+            e.stopPropagation();
+            audio.playSquirt();
+
+            // 墨の雲を発生
+            for (let i = 0; i < 7; i++) {
+                inkClouds.push({
+                    x: octopus.x + (Math.random() - 0.5) * 30,
+                    y: octopus.y + octopus.baseRadius * 0.6,
+                    vx: (Math.random() - 0.5) * 2.5,
+                    vy: 1.5 + Math.random() * 2.5,
+                    radius: 14 + Math.random() * 16,
+                    alpha: 0.72
+                });
+            }
+
+            // 上方向へぷしゅっと急上昇！
+            octopus.vy = -11;
+            octopus.vx = (Math.random() - 0.5) * 6;
+            octopus.velScaleX = -0.35;
+            octopus.velScaleY = 0.42;
+            octopus.expression = 'surprised';
+            octopus.expressionTimer = 1.0;
+
+            addMoodAndScore(2, 8);
+            spawnFloatingText(octopus.x, octopus.y - octopus.baseRadius - 10, '💨 ぷしゅーーっ！', '#d1f2f5');
+        });
+
+        // ウィンドウ読み込み完了後に起動
+        window.onload = function () {
+            resizeCanvas();
+            initAmbientBubbles();
+            spawnFood(width * 0.3, height * 0.38);
+            spawnFood(width * 0.7, height * 0.42);
+            updateUI();
+            requestAnimationFrame(animateLoop);
+        };
+    </script>
+</body>
+</html>
