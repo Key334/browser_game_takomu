@@ -583,14 +583,14 @@ function updateAndDraw() {
     }
   
     // 海中の光差し込み（やさしいグラデーション）
-    // const grad = ctx.createRadialGradient(
-    //   width * 0.5, height * 0.15, 20,
-    //   width * 0.5, height * 0.5, Math.max(width, height) * 0.75
-    // );
-    // grad.addColorStop(0, 'rgba(200, 250, 255, 0.35)');
-    // grad.addColorStop(1, 'rgba(6, 74, 138, 0.15)');
-    // ctx.fillStyle = grad;
-    // ctx.fillRect(0, 0, width, height);
+     const grad = ctx.createRadialGradient(
+       width * 0.5, height * 0.15, 20,
+       width * 0.5, height * 0.5, Math.max(width, height) * 0.75
+     );
+     grad.addColorStop(0, 'rgba(200, 250, 255, 0.35)');
+     grad.addColorStop(1, 'rgba(6, 74, 138, 0.15)');
+     ctx.fillStyle = grad;
+     ctx.fillRect(0, 0, width, height);
 
   // フィーバータイマー進行
   if (state.fever) {
