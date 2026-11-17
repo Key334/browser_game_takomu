@@ -11,7 +11,16 @@ body, html {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background-color: #46959f;
+  /*background-color: #46959f;*/
+  background-color: #1ab5d8; /* グラデーション非対応時の保険 */
+  background-image: linear-gradient(
+    to bottom,
+    #7be3f0 0%,    /* 水面近く：明るい水色 */
+    #1ab5d8 40%,   /* 中層：鮮やかなターコイズ */
+    #0a7fb5 75%,   /* 深め：澄んだ青 */
+    #064a8a 100%   /* 底：深い海の青 */
+  );
+  background-attachment: fixed;
   font-family: "Hiragino Maru Gothic ProN", "Rounded Mplus 1c", "Quicksand", sans-serif;
 }
 
