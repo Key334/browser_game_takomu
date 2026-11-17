@@ -578,9 +578,7 @@ function updateAndDraw() {
     const hueShift = Math.sin(state.time * 0.05) * 8;
     ctx.fillStyle = `hsl(${187 + hueShift}, 42%, 47%)`;
   } else {
-    ctx.fillStyle = '#46959f';
-  }
-  ctx.fillRect(0, 0, width, height);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   // 海中の光差し込み（やさしいグラデーション）
   const grad = ctx.createRadialGradient(
