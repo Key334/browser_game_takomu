@@ -20,8 +20,7 @@ function resize() {
   width = window.innerWidth;
   height = window.innerHeight;
   dpr = Math.min(window.devicePixelRatio || 1, 2);
-  // 例：リサイズ時や初期化時に幅を偶数に揃える
-  canvas.width = Math.floor(window.innerWidth / 2) * 2;
+  canvas.width = width * dpr;
   canvas.height = height * dpr;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
