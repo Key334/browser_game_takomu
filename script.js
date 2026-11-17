@@ -572,23 +572,25 @@ function drawShrimp(ctx, x, y, size, time) {
 // メインアニメーションループ
 function updateAndDraw() {
   state.time++;
+  // 背景は透明にして、CSSの青いグラデーションを見せる
+  ctx.clearRect(0, 0, width, height);
 
-  // 背景のクリア（元画像のティールブルー＋フィーバー時の柔らかな輝き）
+  // フィーバー時は色を薄く重ねて、きらめく海にする
   if (state.fever) {
-    const hueShift = Math.sin(state.time * 0.05) * 8;
-    ctx.fillStyle = `hsl(${187 + hueShift}, 42%, 47%)`;
-  } else {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // 海中の光差し込み（やさしいグラデーション）
-  const grad = ctx.createRadialGradient(
-    width * 0.5, height * 0.15, 20,
-    width * 0.5, height * 0.5, Math.max(width, height) * 0.75
-  );
-  grad.addColorStop(0, 'rgba(160, 235, 242, 0.22)');
-  grad.addColorStop(1, 'rgba(25, 75, 85, 0.18)');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, width, height);
+      const hueShift = Math.sin(state.time * 0.05) * 12;
+      ctx.fillStyle = `hsla(${190 + hueShift}, 90%, 60%, 0.28)`;
+      ctx.fillRect(0, 0, width, height);
+    }
+  
+    // 海中の光差し込み（やさしいグラデーション）
+    const grad = ctx.createRadialGradient(
+      width * 0.5, height * 0.15, 20,
+      width * 0.5, height * 0.5, Math.max(width, height) * 0.75
+    );
+    grad.addColorStop(0, 'rgba(200, 250, 255, 0.35)');
+    grad.addColorStop(1, 'rgba(6, 74, 138, 0.15)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, width, height);
 
   // フィーバータイマー進行
   if (state.fever) {
